@@ -75,6 +75,9 @@ func main() {
 
 	// Define API endpoints
 	http.HandleFunc("/token", GenerateTokenHandler())
+	http.HandleFunc("/invite", AuthMiddleware(GenerateInvitationCodeHandler(db)))
+	http.HandleFunc("/register", AuthMiddleware(RegisterHandler(db)))
+	http.HandleFunc("/login", RateLimitMiddleware(AuthMiddleware((LoginHandler(db)))))
 
 	fmt.Println("Server started on :8012")
 	// Start HTTP server
