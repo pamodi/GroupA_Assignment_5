@@ -79,6 +79,8 @@ func main() {
 	http.HandleFunc("/register", AuthMiddleware(RegisterHandler(db)))
 	http.HandleFunc("/login", RateLimitMiddleware(AuthMiddleware((LoginHandler(db)))))
 
+	ProcessResendCodes(db)
+
 	fmt.Println("Server started on :8012")
 	// Start HTTP server
 	log.Fatal(http.ListenAndServe(":8012", nil))
@@ -215,7 +217,7 @@ func GenerateInvitationCodeHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 		code := base64.URLEncoding.EncodeToString(codeBytes)
-		fmt.Println(code)
+
 		// Insert the code into the database
 		_, err = db.Exec("INSERT INTO invitation_codes (code, email, used) VALUES ($1, $2, false)", code, email)
 		if err != nil {
