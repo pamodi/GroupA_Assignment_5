@@ -1,17 +1,24 @@
 package main
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
+	"golang.org/x/crypto/bcrypt"
+
+	"github.com/juju/ratelimit"
+	_ "github.com/lib/pq"
 )
 
-// Function created by Balangoda Pamodi : 500229522
 const (
 	host     = "localhost"
 	port     = 5432
@@ -35,12 +42,31 @@ type Token struct {
 	ExpireAt time.Time
 }
 
+// Struct to represent invitation code
+type InvitationCode struct {
+	Code string `json:"code"`
+	Used bool   `json:"used"`
+}
+
 // Struct to represent user
 type User struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 	Code     string `json:"code"`
 }
+
+// Struct to represent invitation details
+type Invitation struct {
+	ID    int
+	Email string
+}
+
+var (
+	// Define a map to store IP addresses and their corresponding rate limiters
+	ipLimiterMap = make(map[string]*ratelimit.Bucket)
+	// Mutex to synchronize access to the map
+	ipLimiterMapMutex sync.Mutex
+)
 
 func main() {
 	// Setup database
@@ -55,6 +81,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8012", nil))
 }
 
+// Created by Balangoda Pamodi : 500229522
 // Setup database
 func SetupDatabase() *sql.DB {
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
@@ -119,7 +146,6 @@ func GenerateJWTToken(email string) (string, error) {
 }
 
 // Function created by Tejaswi Cheripally: 500229934
-
 // Authentication middleware
 func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -157,8 +183,8 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		next.ServeHTTP(w, r)
 	}
 }
-//Function created by Syed Abdul Qadeer: 500228186
 
+// Function created by Syed Abdul Qadeer: 500228186
 // Function to extract token from header
 func ExtractTokenFromHeader(r *http.Request) string {
 	authHeader := r.Header.Get("Authorization")
@@ -169,16 +195,10 @@ func ExtractTokenFromHeader(r *http.Request) string {
 	if len(tokenParts) != 2 || strings.ToLower(tokenParts[0]) != "bearer" {
 		return ""
 	}
-	return tokenParts[1]
-}
-//Function created by Samhita Dubbaka: 500225971
-
-// Struct to represent invitation code
-type InvitationCode struct {
-	Code string json:"code"
-	Used bool   json:"used"
+	return tokenParts[1]
 }
 
+// Function created by Samhita Dubbaka: 500225971
 // Generate invitation code
 func GenerateInvitationCodeHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -207,10 +227,7 @@ func GenerateInvitationCodeHandler(db *sql.DB) http.HandlerFunc {
 	}
 }
 
-
-
-
-//Function created by Shubham Bathla:500232317
+// Function created by Shubham Bathla:500232317
 // Register handler
 func RegisterHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -285,8 +302,7 @@ func RegisterHandler(db *sql.DB) http.HandlerFunc {
 	}
 }
 
-//Function created by Rohit:500230041
-
+// Function created by Rohit:500230041
 // Login handler
 func LoginHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -333,14 +349,7 @@ func LoginHandler(db *sql.DB) http.HandlerFunc {
 	}
 }
 
-//Function created by Kamalpreet Kaur: 500218943
-
-// Struct to represent invitation details
-type Invitation struct {
-	ID    int
-	Email string
-}
-
+// Function created by Kamalpreet Kaur: 500218943
 // Function to query the database for expired invitation codes
 func GetExpiredInvitations(db *sql.DB) ([]Invitation, error) {
 	rows, err := db.Query("SELECT id, email FROM invitation_codes WHERE used = false AND expires_at < NOW() - INTERVAL '2 minutes'")
@@ -361,7 +370,7 @@ func GetExpiredInvitations(db *sql.DB) ([]Invitation, error) {
 	return expiredInvitations, nil
 }
 
-//Function created by Mandeep Kaur- 500209900
+// Function created by Mandeep Kaur- 500209900
 // Schedule a background task to run periodically
 func ProcessResendCodes(db *sql.DB) {
 
@@ -384,9 +393,9 @@ func ProcessResendCodes(db *sql.DB) {
 		// Wait for some time before running the background task again
 		time.Sleep(2 * time.Hour)
 	}
-}  
-    //Function created by Abhisheik Yadla: 500219580
+}
 
+// Function created by Abhisheik Yadla: 500219580
 // Function to resend invitation or send reminder to user
 func ResendInvitation(invitation Invitation) error {
 	// TODO: Send new invitation code to the user's email
@@ -394,15 +403,7 @@ func ResendInvitation(invitation Invitation) error {
 	return nil
 }
 
-//Function created by Mohammed Abdul Bari Waseem: 500225922
-
-var (
-	// Define a map to store IP addresses and their corresponding rate limiters
-	ipLimiterMap = make(map[string]*ratelimit.Bucket)
-	// Mutex to synchronize access to the map
-	ipLimiterMapMutex sync.Mutex
-)
-
+// Function created by Mohammed Abdul Bari Waseem: 500225922
 // Rate limit middleware
 func RateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -424,6 +425,6 @@ func RateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(w, r)
 	}
 }
