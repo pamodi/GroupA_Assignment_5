@@ -164,3 +164,38 @@ func ExtractTokenFromHeader(r *http.Request) string {
 	}
 	return tokenParts[1]
 }
+//Function created by Samhita Dubbaka: 500225971
+
+// Struct to represent invitation code
+type InvitationCode struct {
+	Code string json:"code"
+	Used bool   json:"used"
+}
+
+// Generate invitation code
+func GenerateInvitationCodeHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		email := r.FormValue("email")
+
+		// Generate random invitation code
+		codeBytes := make([]byte, 16)
+		_, err := rand.Read(codeBytes)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		code := base64.URLEncoding.EncodeToString(codeBytes)
+		fmt.Println(code)
+		// Insert the code into the database
+		_, err = db.Exec("INSERT INTO invitation_codes (code, email, used) VALUES ($1, $2, false)", code, email)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Return the generated code
+		invitationCode := InvitationCode{Code: code}
+		json.NewEncoder(w).Encode(invitationCode)
+		w.WriteHeader(http.StatusCreated)
+	}
+}
