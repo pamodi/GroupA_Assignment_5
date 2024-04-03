@@ -393,3 +393,37 @@ func ResendInvitation(invitation Invitation) error {
 	fmt.Printf("Resending invitation to %s\n", invitation.Email)
 	return nil
 }
+
+//Function created by Mohammed Abdul Bari Waseem: 500225922
+
+var (
+	// Define a map to store IP addresses and their corresponding rate limiters
+	ipLimiterMap = make(map[string]*ratelimit.Bucket)
+	// Mutex to synchronize access to the map
+	ipLimiterMapMutex sync.Mutex
+)
+
+// Rate limit middleware
+func RateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Get the IP address of the client
+		ip := r.RemoteAddr
+
+		ipLimiterMapMutex.Lock()
+		limiter, exists := ipLimiterMap[ip]
+		if !exists {
+			// Create a new rate limiter for the IP address
+			limiter = ratelimit.NewBucketWithRate(1, 1)
+			ipLimiterMap[ip] = limiter
+		}
+		ipLimiterMapMutex.Unlock()
+
+		// Take a token from the rate limiter
+		if limiter.TakeAvailable(1) == 0 {
+			http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	}
+}
