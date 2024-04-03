@@ -384,4 +384,12 @@ func ProcessResendCodes(db *sql.DB) {
 		// Wait for some time before running the background task again
 		time.Sleep(2 * time.Hour)
 	}
+}  
+    //Function created by Abhisheik Yadla: 500219580
+
+// Function to resend invitation or send reminder to user
+func ResendInvitation(invitation Invitation) error {
+	// TODO: Send new invitation code to the user's email
+	fmt.Printf("Resending invitation to %s\n", invitation.Email)
+	return nil
 }
