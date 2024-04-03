@@ -360,3 +360,28 @@ func GetExpiredInvitations(db *sql.DB) ([]Invitation, error) {
 
 	return expiredInvitations, nil
 }
+
+//Function created by Mandeep Kaur- 500209900
+// Schedule a background task to run periodically
+func ProcessResendCodes(db *sql.DB) {
+
+	for {
+		// Query database for expired invitation codes
+		expiredInvitations, err := GetExpiredInvitations(db)
+		if err != nil {
+			fmt.Println("Error querying expired invitations:", err)
+			continue
+		}
+
+		// Resend invitation codes or send reminders to users
+		for _, invitation := range expiredInvitations {
+			err := ResendInvitation(invitation)
+			if err != nil {
+				fmt.Println("Error resending invitation:", err)
+			}
+		}
+
+		// Wait for some time before running the background task again
+		time.Sleep(2 * time.Hour)
+	}
+}
