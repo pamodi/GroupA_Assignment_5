@@ -332,3 +332,31 @@ func LoginHandler(db *sql.DB) http.HandlerFunc {
 		fmt.Fprintf(w, "Logged in successfully!\n")
 	}
 }
+
+//Function created by Kamalpreet Kaur: 500218943
+
+// Struct to represent invitation details
+type Invitation struct {
+	ID    int
+	Email string
+}
+
+// Function to query the database for expired invitation codes
+func GetExpiredInvitations(db *sql.DB) ([]Invitation, error) {
+	rows, err := db.Query("SELECT id, email FROM invitation_codes WHERE used = false AND expires_at < NOW() - INTERVAL '2 minutes'")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var expiredInvitations []Invitation
+	for rows.Next() {
+		var invitation Invitation
+		if err := rows.Scan(&invitation.ID, &invitation.Email); err != nil {
+			return nil, err
+		}
+		expiredInvitations = append(expiredInvitations, invitation)
+	}
+
+	return expiredInvitations, nil
+}
