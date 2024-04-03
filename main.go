@@ -11,6 +11,7 @@ import (
 	"github.com/dgrijalva/jwt-go"
 )
 
+// Function created by Balangoda Pamodi : 500229522
 const (
 	host     = "localhost"
 	port     = 5432
@@ -108,4 +109,44 @@ func GenerateJWTToken(email string) (string, error) {
 	}
 
 	return tokenString, nil
+}
+
+// Function created by Tejaswi Cheripally: 500229934
+
+// Authentication middleware
+func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		email := r.FormValue("email")
+		claims := jwt.MapClaims{
+			"email":  email,
+			"expiry": time.Now().Add(2 * time.Hour).Unix(),
+		}
+
+		// Extract JWT token from Authorization header
+		tokenString := ExtractTokenFromHeader(r)
+		if tokenString == "" {
+			http.Error(w, "Authorization header not found", http.StatusUnauthorized)
+			return
+		}
+
+		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+			return jwtKey, nil
+		})
+
+		if err != nil || !token.Valid {
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			return
+		}
+
+		// Check if "expiry" claim exists and is valid
+		expClaim, ok := claims["expiry"].(float64)
+		if !ok || expClaim == 0 {
+			http.Error(w, "Expired token", http.StatusUnauthorized)
+			return
+		}
+
+		// Proceed to the next handler
+		next.ServeHTTP(w, r)
+	}
 }
