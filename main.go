@@ -35,6 +35,13 @@ type Token struct {
 	ExpireAt time.Time
 }
 
+// Struct to represent user
+type User struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	Code     string `json:"code"`
+}
+
 func main() {
 	// Setup database
 	db := SetupDatabase()
@@ -197,5 +204,83 @@ func GenerateInvitationCodeHandler(db *sql.DB) http.HandlerFunc {
 		invitationCode := InvitationCode{Code: code}
 		json.NewEncoder(w).Encode(invitationCode)
 		w.WriteHeader(http.StatusCreated)
+	}
+}
+
+
+
+
+//Function created by Shubham Bathla:500232317
+// Register handler
+func RegisterHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "Only POST method is allowed!", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var user User
+		json.NewDecoder(r.Body).Decode(&user)
+
+		// Check if invitation code exists for the user
+		var codeExists bool
+		err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM invitation_codes WHERE code=$1 AND email=$2)", user.Code, user.Email).Scan(&codeExists)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if !codeExists {
+			http.Error(w, "Invalid invitation code", http.StatusBadRequest)
+			return
+		}
+
+		// Check if invitation code exists unused for the user
+		var isCodeUsed bool
+		err_IsCodeUsed := db.QueryRow("SELECT EXISTS(SELECT 1 FROM invitation_codes WHERE code=$1 AND used=true AND email=$2)", user.Code, user.Email).Scan(&isCodeUsed)
+		if err_IsCodeUsed != nil {
+			http.Error(w, err_IsCodeUsed.Error(), http.StatusInternalServerError)
+			return
+		}
+		if isCodeUsed {
+			http.Error(w, "Used invitation code", http.StatusBadRequest)
+			return
+		}
+
+		// Check if invitation code exists and not expired for the user
+		var isValidCode bool
+		err_isValidCode := db.QueryRow("SELECT EXISTS(SELECT 1 FROM invitation_codes WHERE code=$1 AND used=false AND email=$2 AND expires_at > NOW() - INTERVAL '2 minutes')", user.Code, user.Email).Scan(&isValidCode)
+		if err_isValidCode != nil {
+			http.Error(w, err_isValidCode.Error(), http.StatusInternalServerError)
+			return
+		}
+		if !isValidCode {
+			http.Error(w, "Expired invitation code", http.StatusBadRequest)
+			return
+		}
+
+		// Hash the password
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Insert user into the database
+		_, err = db.Exec("INSERT INTO users (email, password_hash) VALUES ($1, $2)", user.Email, hashedPassword)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Mark the invitation code as used
+		_, err = db.Exec("UPDATE invitation_codes SET used=true WHERE code=$1", user.Code)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(user)
+		fmt.Println("User registered successfully")
 	}
 }
