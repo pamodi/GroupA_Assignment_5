@@ -284,3 +284,51 @@ func RegisterHandler(db *sql.DB) http.HandlerFunc {
 		fmt.Println("User registered successfully")
 	}
 }
+
+//Function created by Rohit:500230041
+
+// Login handler
+func LoginHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tokenString := ExtractTokenFromHeader(r)
+		if tokenString == "" {
+			http.Error(w, "Authorization header not found", http.StatusUnauthorized)
+			return
+		}
+
+		if r.Method != "POST" {
+			http.Error(w, "Only POST method is allowed!", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var user User
+		json.NewDecoder(r.Body).Decode(&user)
+
+		var passwordHsh string
+		err := db.QueryRow("SELECT password_hash FROM users WHERE email = $1", user.Email).Scan(&passwordHsh)
+		if err != nil {
+			http.Error(w, "User not found", http.StatusUnauthorized)
+			return
+		}
+
+		// Compare passwords
+		err = bcrypt.CompareHashAndPassword([]byte(passwordHsh), []byte(user.Password))
+		if err != nil {
+			http.Error(w, "Invalid credential!", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var user_id int64
+		_ = db.QueryRow("SELECT id FROM users WHERE email = $1", user.Email).Scan(&user_id)
+
+		// Insert user session into the database
+		_, err = db.Exec("INSERT INTO sessions (user_id, token) VALUES ($1, $2)", user_id, tokenString)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "Logged in successfully!\n")
+	}
+}
