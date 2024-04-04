@@ -4,7 +4,7 @@
 This Go-based API server develop a user management application where registration is gated behind an invitation code. Only users with a valid invitation code can register. Each invitation code can only be used once. Implemented an API with Go that exposes endpoints for user registration, login, and inviting new users and used PostgreSQL to store user details and invitation codes.
 
 ## Objectives
-* Develop a RESTful API Server in Go to handle GET and POST requests.
+* Develop an API Server in Go to handle GET and POST requests.
 * Integrated Postgres DB.
 * Implement secure APIs by using JWT tokens.
 * Add background job to resend invitation codes.
@@ -164,3 +164,9 @@ We collaborated on this project as a team. Following are our members:
 * Shubham Bathla - 500232317
 * Mandeep Bajwa - 500209900
 * Kamalpreet Kaur - 500218943
+
+See more details on the list of [contributors](https://github.com/pamodi/GroupA_Assignment_5/graphs/contributors) who participated in this project.
+
+## Help
+
+Please contact any of the contributors for help.
